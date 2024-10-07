@@ -8,6 +8,8 @@ on:
 jobs:
   publish:
     name: Publishes Tag, Release, and Uploads Component
+    needs: build_idf_examples_with_wifi_remote
+
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
