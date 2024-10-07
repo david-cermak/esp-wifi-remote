@@ -55,4 +55,5 @@ jobs:
           directories: >
             components/esp_wifi_remote;
           namespace: "espressif"
-          api_token: ${{ secrets.IDF_COMPONENT_API_TOKEN }}
+          api_token: ${{ secrets.IDF_COMPONENT_API_TOKEN2 }}
+          registry_url: "https://components-staging.espressif.com"
