@@ -15,6 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          token: "${{ secrets.GITHUB_TOKEN }}"
       - name: Checkout protocols
         uses: actions/checkout@v4
         with:
