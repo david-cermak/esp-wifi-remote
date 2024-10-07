@@ -1,12 +1,15 @@
 name: Publish esp-wifi-remote
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["Build", "Compat checks"]
+    branches: [main]
+    types:
+      - completed
 
 jobs:
   publish:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     name: Publishes Tag, Release, and Uploads Component
     needs: build_idf_examples_with_wifi_remote
 
