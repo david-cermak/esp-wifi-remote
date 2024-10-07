@@ -1,4 +1,4 @@
-name: "esp_wifi_remote: build-tests"
+name: "Build"
 
 on:
   push:
