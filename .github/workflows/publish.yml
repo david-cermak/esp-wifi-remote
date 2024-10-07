@@ -1,0 +1,50 @@
+name: Publish esp-wifi-remote
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  publish:
+    name: Publishes Tag, Release, and Uploads Component
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout protocols
+        uses: actions/checkout@v4
+        with:
+          repository: espressif/esp-protocols
+          ref: wifi_remote-v0.4.0
+          sparse-checkout: |
+            ci/detect_component_bump
+          sparse-checkout-cone-mode: false
+          path: protocols
+
+      - name: Check for version update
+        shell: bash
+        run: $GITHUB_WORKSPACE/protocols/ci/detect_component_bump
+
+      - name: Tag merge commit
+        if: env.BUMP_VERSION != ''
+        uses: anothrNick/github-tag-action@1.61.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CUSTOM_TAG: ${{ env.BUMP_TAG }}
+
+      - name: Create Release
+        if: env.BUMP_VERSION != ''
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: "release_notes.md"
+          tag_name: ${{ env.BUMP_TAG }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload esp_wifi_remote to IDF Component Registry
+        uses: espressif/upload-components-ci-action@v1
+        with:
+          directories: >
+            components/esp_wifi_remote;
+          namespace: "espressif"
+          api_token: ${{ secrets.IDF_COMPONENT_API_TOKEN }}
