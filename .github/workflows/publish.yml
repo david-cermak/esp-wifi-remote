@@ -2,7 +2,7 @@ name: Publish esp-wifi-remote
 
 on:
   workflow_run:
-    workflows: ["Build", "Compat checks"]
+    workflows: ["Compat checks"]
     branches: [main]
     types:
       - completed

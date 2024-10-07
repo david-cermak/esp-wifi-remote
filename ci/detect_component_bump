@@ -2,6 +2,10 @@
 
 set -e
 
+git show -s
+git show -s | grep '^Merge';
+
+
 if ! git show -s | grep -q '^Merge'; then
     echo "Not a merge commit"
     exit 0;
