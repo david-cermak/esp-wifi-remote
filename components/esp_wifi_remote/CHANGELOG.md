@@ -1,5 +1,7 @@
 # Changelog
 
+## [0.4.1](https://github.com/espressif/esp-wifi-remote/commits/wifi_remote-v0.4.1)
+
 ## [0.4.0](https://github.com/espressif/esp-protocols/commits/wifi_remote-v0.4.0)
 
 ### Features
