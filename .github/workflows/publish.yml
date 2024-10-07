@@ -15,19 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Checkout protocols
-        uses: actions/checkout@v4
-        with:
-          repository: espressif/esp-protocols
-          ref: wifi_remote-v0.4.0
-          sparse-checkout: |
-            ci/detect_component_bump
-          sparse-checkout-cone-mode: false
-          path: protocols
-
       - name: Check for version update
         shell: bash
-        run: $GITHUB_WORKSPACE/protocols/ci/detect_component_bump
+        run: ./ci/detect_component_bump
 
       - name: Tag merge commit
         if: env.BUMP_VERSION != ''
