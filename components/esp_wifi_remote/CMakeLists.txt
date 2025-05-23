@@ -41,7 +41,7 @@ if(NOT CONFIG_ESP_WIFI_ENABLED AND NOT CONFIG_ESP_HOST_WIFI_ENABLED)
 endif()
 
 if(CONFIG_ESP_WIFI_ENABLED OR CONFIG_ESP_HOST_WIFI_ENABLED)
-    set(wifi_sources "esp_wifi_remote_netif.c")
+    set(wifi_sources "esp_wifi_remote_netif2.c")
 endif()
 
 

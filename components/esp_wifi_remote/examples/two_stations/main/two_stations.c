@@ -147,8 +147,12 @@ static void wifi_init_sta(void)
     }
 }
 
+esp_netif_t* esp_wifi_remote_create_default_sta(void);
+
 static void wifi_init_remote_sta(void)
 {
+    esp_wifi_remote_create_default_sta();
+
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_remote_init(&cfg));
 

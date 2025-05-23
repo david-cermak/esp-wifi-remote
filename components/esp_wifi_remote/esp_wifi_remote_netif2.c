@@ -8,10 +8,67 @@
 #include "esp_wifi.h"
 #include "esp_netif.h"
 #include "esp_log.h"
-#include "esp_private/wifi.h"
 #include "esp_wifi_netif.h"
 #include <string.h>
 #include <inttypes.h>
+#include "esp_wifi_remote.h"
+
+#define CHANNELS 2
+#define WEAK __attribute__((weak))
+
+typedef esp_err_t (*wifi_rxcb_t)(void *buffer, uint16_t len, void *eb);
+static esp_remote_channel_tx_fn_t s_tx_cb[CHANNELS];
+static esp_remote_channel_t s_channel[CHANNELS];
+static wifi_rxcb_t s_rx_fn[CHANNELS];
+
+WEAK esp_err_t internal_set_sta_ip(void)
+{
+    // TODO: Pass this information to the slave target
+    // Note that this function is called from the default event loop, so we shouldn't block here
+    return ESP_OK;
+}
+
+WEAK esp_err_t esp_wifi_remote_channel_rx(void *h, void *buffer, void *buff_to_free, size_t len)
+{
+    assert(h);
+    if (h == s_channel[0] && s_rx_fn[0]) {
+        return s_rx_fn[0](buffer, len, buff_to_free);
+    }
+    if (h == s_channel[1] && s_rx_fn[1]) {
+        return s_rx_fn[1](buffer, len, buff_to_free);
+    }
+    return ESP_FAIL;
+}
+
+WEAK esp_err_t esp_wifi_remote_channel_set(wifi_interface_t ifx, void *h, esp_remote_channel_tx_fn_t tx_cb)
+{
+    if (ifx == WIFI_IF_STA) {
+        s_channel[0] = h;
+        s_tx_cb[0] = tx_cb;
+        return ESP_OK;
+    }
+    if (ifx == WIFI_IF_AP) {
+        s_channel[1] = h;
+        s_tx_cb[1] = tx_cb;
+        return ESP_OK;
+    }
+    return ESP_FAIL;
+}
+
+
+__attribute__((always_inline)) static inline int internal_tx(wifi_interface_t ifx, void *buffer, uint16_t len)
+{
+    if (ifx == WIFI_IF_STA && s_tx_cb[0]) {
+
+        /* TODO: If not needed, remove arg3 */
+        return s_tx_cb[0](s_channel[0], buffer, len);
+    }
+    if (ifx == WIFI_IF_AP && s_tx_cb[1]) {
+        return s_tx_cb[1](s_channel[1], buffer, len);
+    }
+
+    return -1;
+}
 
 /**
  * This is a dummy driver, since we support only STA and AP interfaces
@@ -20,9 +77,9 @@
 #define WIFI_REMOTE_DRIVER_HANDLE ((void*)1)
 
 #define IMPLEMENT_WIFI_TRANSMIT(name, interface) static esp_err_t name(void *h, void *buffer, size_t len) \
-                                                 { return esp_wifi_internal_tx(interface, buffer, len); }
+                                                 { return internal_tx(interface, buffer, len); }
 #define IMPLEMENT_WIFI_TRANSMIT_WRAP(name, interface) static esp_err_t name(void *h, void *buffer, size_t len, void *netbuf) \
-                                                 { return esp_wifi_internal_tx(interface, buffer, len); }
+                                                 { return internal_tx(interface, buffer, len); }
 
 extern const esp_netif_netstack_config_t *_g_esp_netif_netstack_default_wifi_ap;
 extern const esp_netif_netstack_config_t *_g_esp_netif_netstack_default_wifi_sta;
@@ -38,9 +95,9 @@ IMPLEMENT_WIFI_TRANSMIT_WRAP(transmit_wrap_ap, WIFI_IF_AP)
 
 static void wifi_free(void *h, void* buffer)
 {
-    if (buffer) {
-        esp_wifi_internal_free_rx_buffer(buffer);
-    }
+//    if (buffer) {
+//        esp_wifi_internal_free_rx_buffer(buffer);
+//    }
 }
 
 static esp_err_t receive_sta(void *buffer, uint16_t len, void *eb)
@@ -68,16 +125,13 @@ static void wifi_start(wifi_interface_t ifx, esp_event_base_t base, int32_t even
     ESP_LOGD(TAG, "WIFI mac address: %x %x %x %x %x %x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
     if (ifx == WIFI_IF_AP) {
-        if ((ret = esp_wifi_internal_reg_rxcb(ifx,  receive_ap)) != ESP_OK) {
-            ESP_LOGE(TAG, "esp_wifi_internal_reg_rxcb for if=%d failed with %d", ifx, ret);
-            return;
-        }
+        s_rx_fn[1] = receive_ap;
     }
 
-    if ((ret = esp_wifi_internal_reg_netstack_buf_cb(esp_netif_netstack_buf_ref, esp_netif_netstack_buf_free)) != ESP_OK) {
-        ESP_LOGE(TAG, "netstack cb reg failed with %d", ret);
-        return;
-    }
+//    if ((ret = esp_wifi_internal_reg_netstack_buf_cb(esp_netif_netstack_buf_ref, esp_netif_netstack_buf_free)) != ESP_OK) {
+//        ESP_LOGE(TAG, "netstack cb reg failed with %d", ret);
+//        return;
+//    }
     esp_netif_set_mac(s_wifi_netifs[ifx], mac);
     esp_netif_action_start(s_wifi_netifs[ifx], base, event_id, data);
 }
@@ -103,11 +157,7 @@ static void wifi_default_action_sta_stop(void *arg, esp_event_base_t base, int32
 static void wifi_default_action_sta_connected(void *arg, esp_event_base_t base, int32_t event_id, void *data)
 {
     if (s_wifi_netifs[WIFI_IF_STA] != NULL) {
-        esp_err_t ret;
-        if ((ret = esp_wifi_internal_reg_rxcb(WIFI_IF_STA,  receive_sta)) != ESP_OK) {
-            ESP_LOGE(TAG, "esp_wifi_internal_reg_rxcb for if=%d failed with %d", WIFI_IF_STA, ret);
-            return;
-        }
+        s_rx_fn[0] = receive_sta;
         esp_netif_action_connected(s_wifi_netifs[WIFI_IF_STA], base, event_id, data);
     }
 }
@@ -139,7 +189,7 @@ static void wifi_default_action_sta_got_ip(void *arg, esp_event_base_t base, int
 {
     if (s_wifi_netifs[WIFI_IF_STA] != NULL) {
         ESP_LOGD(TAG, "Got IP wifi default handler entered");
-        int ret = esp_wifi_internal_set_sta_ip();
+        int ret = internal_set_sta_ip();
         if (ret != ESP_OK) {
             ESP_LOGI(TAG, "esp_wifi_internal_set_sta_ip failed with %d", ret);
         }
@@ -151,13 +201,13 @@ static void wifi_default_action_sta_got_ip(void *arg, esp_event_base_t base, int
  */
 static esp_err_t clear_default_wifi_handlers(void)
 {
-    esp_event_handler_unregister(WIFI_EVENT, WIFI_EVENT_STA_START, wifi_default_action_sta_start);
-    esp_event_handler_unregister(WIFI_EVENT, WIFI_EVENT_STA_STOP, wifi_default_action_sta_stop);
-    esp_event_handler_unregister(WIFI_EVENT, WIFI_EVENT_STA_CONNECTED, wifi_default_action_sta_connected);
-    esp_event_handler_unregister(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, wifi_default_action_sta_disconnected);
+    esp_event_handler_unregister(WIFI_REMOTE_EVENT, WIFI_EVENT_STA_START, wifi_default_action_sta_start);
+    esp_event_handler_unregister(WIFI_REMOTE_EVENT, WIFI_EVENT_STA_STOP, wifi_default_action_sta_stop);
+    esp_event_handler_unregister(WIFI_REMOTE_EVENT, WIFI_EVENT_STA_CONNECTED, wifi_default_action_sta_connected);
+    esp_event_handler_unregister(WIFI_REMOTE_EVENT, WIFI_EVENT_STA_DISCONNECTED, wifi_default_action_sta_disconnected);
 #ifdef CONFIG_WIFI_RMT_SOFTAP_SUPPORT
-    esp_event_handler_unregister(WIFI_EVENT, WIFI_EVENT_AP_START, wifi_default_action_ap_start);
-    esp_event_handler_unregister(WIFI_EVENT, WIFI_EVENT_AP_STOP, wifi_default_action_ap_stop);
+    esp_event_handler_unregister(WIFI_REMOTE_EVENT, WIFI_EVENT_AP_START, wifi_default_action_ap_start);
+    esp_event_handler_unregister(WIFI_REMOTE_EVENT, WIFI_EVENT_AP_STOP, wifi_default_action_ap_stop);
 #endif
     esp_event_handler_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, wifi_default_action_sta_got_ip);
     esp_unregister_shutdown_handler((shutdown_handler_t)esp_wifi_stop);
@@ -174,33 +224,33 @@ static esp_err_t set_default_wifi_handlers(void)
     }
     esp_err_t err;
 
-    err = esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_START, wifi_default_action_sta_start, NULL);
+    err = esp_event_handler_register(WIFI_REMOTE_EVENT, WIFI_EVENT_STA_START, wifi_default_action_sta_start, NULL);
     if (err != ESP_OK) {
         goto fail;
     }
 
-    err = esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_STOP, wifi_default_action_sta_stop, NULL);
+    err = esp_event_handler_register(WIFI_REMOTE_EVENT, WIFI_EVENT_STA_STOP, wifi_default_action_sta_stop, NULL);
     if (err != ESP_OK) {
         goto fail;
     }
 
-    err = esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_CONNECTED, wifi_default_action_sta_connected, NULL);
+    err = esp_event_handler_register(WIFI_REMOTE_EVENT, WIFI_EVENT_STA_CONNECTED, wifi_default_action_sta_connected, NULL);
     if (err != ESP_OK) {
         goto fail;
     }
 
-    err = esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, wifi_default_action_sta_disconnected, NULL);
+    err = esp_event_handler_register(WIFI_REMOTE_EVENT, WIFI_EVENT_STA_DISCONNECTED, wifi_default_action_sta_disconnected, NULL);
     if (err != ESP_OK) {
         goto fail;
     }
 
 #ifdef CONFIG_WIFI_RMT_SOFTAP_SUPPORT
-    err = esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_START, wifi_default_action_ap_start, NULL);
+    err = esp_event_handler_register(WIFI_REMOTE_EVENT, WIFI_EVENT_AP_START, wifi_default_action_ap_start, NULL);
     if (err != ESP_OK) {
         goto fail;
     }
 
-    err = esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STOP, wifi_default_action_ap_stop, NULL);
+    err = esp_event_handler_register(WIFI_REMOTE_EVENT, WIFI_EVENT_AP_STOP, wifi_default_action_ap_stop, NULL);
     if (err != ESP_OK) {
         goto fail;
     }
@@ -227,7 +277,7 @@ static esp_err_t set_default_wifi_handlers(void)
 /**
  * @brief User init custom wifi interface
  */
-esp_netif_t* esp_netif_create_wifi(wifi_interface_t wifi_if, const esp_netif_inherent_config_t *esp_netif_config)
+esp_netif_t* esp_netif_create_wifi_remote(wifi_interface_t wifi_if, const esp_netif_inherent_config_t *esp_netif_config)
 {
     esp_netif_driver_ifconfig_t driver_ifconfig = {
             .handle =  WIFI_REMOTE_DRIVER_HANDLE,
@@ -258,7 +308,7 @@ esp_netif_t* esp_netif_create_wifi(wifi_interface_t wifi_if, const esp_netif_inh
 /**
  * @brief Set default handlers for station (official API)
  */
-esp_err_t esp_wifi_set_default_wifi_sta_handlers(void)
+esp_err_t esp_wifi_set_default_wifi_remote_sta_handlers(void)
 {
     return set_default_wifi_handlers();
 }
@@ -266,7 +316,7 @@ esp_err_t esp_wifi_set_default_wifi_sta_handlers(void)
 /**
  * @brief Set default handlers for AP (official API)
  */
-esp_err_t esp_wifi_set_default_wifi_ap_handlers(void)
+esp_err_t esp_wifi_set_default_wifi_remote_ap_handlers(void)
 {
     return set_default_wifi_handlers();
 }
@@ -274,7 +324,7 @@ esp_err_t esp_wifi_set_default_wifi_ap_handlers(void)
 /**
  * @brief Clear default handlers and destroy appropriate objects (official API)
  */
-esp_err_t esp_wifi_clear_default_wifi_driver_and_handlers(void *esp_netif)
+esp_err_t esp_wifi_remote_clear_default_wifi_driver_and_handlers(void *esp_netif)
 {
     int i;
     wifi_interface_t ifx;
@@ -296,7 +346,7 @@ esp_err_t esp_wifi_clear_default_wifi_driver_and_handlers(void *esp_netif)
         ESP_LOGD(TAG, "Clearing wifi default handlers");
         clear_default_wifi_handlers();
     }
-    esp_wifi_internal_reg_rxcb(ifx, NULL);
+    s_rx_fn[ifx] = NULL;
     return ESP_OK;
 }
 
@@ -336,8 +386,8 @@ esp_netif_t* esp_wifi_remote_create_default_ap(void)
     esp_netif_inherent_config_t esp_netif_config = ESP_NETIF_INHERENT_DEFAULT_WIFI_AP();
     esp_netif_config.if_key = "WIFI_AP_RMT";
     esp_netif_config.if_desc = "wifi_ap_remote";
-    esp_netif_t *netif= esp_netif_create_wifi(WIFI_IF_AP, &esp_netif_config);
-    esp_wifi_set_default_wifi_ap_handlers();
+    esp_netif_t *netif= esp_netif_create_wifi_remote(WIFI_IF_AP, &esp_netif_config);
+    esp_wifi_set_default_wifi_remote_ap_handlers();
     return netif;
 }
 
@@ -349,7 +399,7 @@ esp_netif_t* esp_wifi_remote_create_default_sta(void)
     esp_netif_inherent_config_t esp_netif_config = ESP_NETIF_INHERENT_DEFAULT_WIFI_STA();
     esp_netif_config.if_key = "WIFI_STA_RMT";
     esp_netif_config.if_desc = "wifi_sta_remote";
-    esp_netif_t *netif= esp_netif_create_wifi(WIFI_IF_STA, &esp_netif_config);
-    esp_wifi_set_default_wifi_sta_handlers();
+    esp_netif_t *netif= esp_netif_create_wifi_remote(WIFI_IF_STA, &esp_netif_config);
+    esp_wifi_set_default_wifi_remote_sta_handlers();
     return netif;
 }

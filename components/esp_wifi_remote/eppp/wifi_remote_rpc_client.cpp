@@ -15,9 +15,10 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "wifi_remote_rpc_params.h"
+#include "esp_wifi_remote.h"
 
 #if defined(CONFIG_ESP_WIFI_ENABLED)
-ESP_EVENT_DEFINE_BASE(WIFI_REMOTE_EVENT);
+extern "C" ESP_EVENT_DEFINE_BASE(WIFI_REMOTE_EVENT);
 #else
 #define WIFI_REMOTE_EVENT WIFI_EVENT
 #endif
@@ -118,6 +119,9 @@ public:
     esp_err_t init()
     {
         ESP_RETURN_ON_FALSE(netif = wifi_remote_eppp_init(EPPP_CLIENT), ESP_FAIL, TAG, "Failed to connect to EPPP server");
+        eppp_add_channels(netif, 1, &channel_tx, channel_rx);
+        esp_wifi_remote_channel_set(WIFI_IF_STA, (void*)this, wifi_remote_tx);
+
         ESP_RETURN_ON_ERROR(esp_event_handler_register(IP_EVENT, IP_EVENT_PPP_GOT_IP, got_ip, this), TAG, "Failed to register event");
         ESP_RETURN_ON_ERROR(sync.init(), TAG, "Failed to init sync primitives");
         ESP_RETURN_ON_ERROR(rpc.init(), TAG, "Failed to init RPC engine");
@@ -200,7 +204,24 @@ private:
         auto instance = static_cast<RpcInstance *>(ctx);
         instance->sync.notify(instance->sync.restart);
     }
+    static esp_err_t channel_rx(esp_netif_t *netif, int nr, void *buffer, size_t len)
+    {
+        if (netif) {
+            return esp_netif_receive(netif, buffer, len, nullptr);
+        }
+        return ESP_OK;
+    }
+
+    static esp_err_t wifi_remote_tx(void *h, void *buffer, size_t len)
+    {
+        auto instance = static_cast<RpcInstance *>(h);
+        if (instance->channel_tx) {
+            return instance->channel_tx(instance->netif, 1, buffer, len);
+        }
+        return ESP_FAIL;
+    }
     esp_netif_t *netif{nullptr};
+    eppp_channel_fn_t channel_tx{nullptr};
 };
 
 
