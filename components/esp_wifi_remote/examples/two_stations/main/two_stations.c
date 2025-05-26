@@ -70,9 +70,9 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 static void event_handler_remote(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* event_data)
 {
-    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+    if (event_base == WIFI_REMOTE_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_remote_connect();
-    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+    } else if (event_base == WIFI_REMOTE_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         if (s_retry_num < EXAMPLE_ESP_MAXIMUM_RETRY) {
             esp_wifi_remote_connect();
             s_retry_num++;
@@ -165,7 +165,7 @@ static void wifi_init_remote_sta(void)
                                                         &instance_any_id));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
                                                         IP_EVENT_STA_GOT_IP,
-                                                        &event_handler,
+                                                        &event_handler_remote,
                                                         NULL,
                                                         &instance_got_ip));
 
@@ -184,7 +184,7 @@ static void wifi_init_remote_sta(void)
     /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
      * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
     EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
-            WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+            WIFI_REMOTE_CONNECTED_BIT | WIFI_REMOTE_FAIL_BIT,
             pdFALSE,
             pdFALSE,
             portMAX_DELAY);
@@ -213,7 +213,7 @@ void app_main(void)
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
 
     init_system_components();
-    wifi_init_sta();
+//    wifi_init_sta();
     wifi_init_remote_sta();
 
 }

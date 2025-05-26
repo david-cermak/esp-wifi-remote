@@ -30,8 +30,8 @@ WEAK esp_err_t internal_set_sta_ip(void)
 
 WEAK esp_err_t esp_wifi_remote_channel_rx(void *h, void *buffer, void *buff_to_free, size_t len)
 {
-    assert(h);
-    if (h == s_channel[0] && s_rx_fn[0]) {
+//    assert(h);
+    if (/*h == s_channel[0] &&*/ s_rx_fn[0]) {
         return s_rx_fn[0](buffer, len, buff_to_free);
     }
     if (h == s_channel[1] && s_rx_fn[1]) {
@@ -59,7 +59,7 @@ WEAK esp_err_t esp_wifi_remote_channel_set(wifi_interface_t ifx, void *h, esp_re
 __attribute__((always_inline)) static inline int internal_tx(wifi_interface_t ifx, void *buffer, uint16_t len)
 {
     if (ifx == WIFI_IF_STA && s_tx_cb[0]) {
-
+//        ESP_LOG_BUFFER_HEXDUMP("wifi_tx", buffer, len, ESP_LOG_WARN);
         /* TODO: If not needed, remove arg3 */
         return s_tx_cb[0](s_channel[0], buffer, len);
     }
@@ -102,6 +102,7 @@ static void wifi_free(void *h, void* buffer)
 
 static esp_err_t receive_sta(void *buffer, uint16_t len, void *eb)
 {
+//    ESP_LOG_BUFFER_HEXDUMP("wifi_Rx", buffer, len, ESP_LOG_ERROR);
     return esp_netif_receive(s_wifi_netifs[WIFI_IF_STA], buffer, len, eb);
 }
 
@@ -118,11 +119,11 @@ static void wifi_start(wifi_interface_t ifx, esp_event_base_t base, int32_t even
     uint8_t mac[6];
     esp_err_t ret;
 
-    if ((ret = esp_wifi_get_mac(ifx, mac)) != ESP_OK) {
+    if ((ret = esp_wifi_remote_get_mac(ifx, mac)) != ESP_OK) {
         ESP_LOGE(TAG, "esp_wifi_get_mac failed with %d", ret);
         return;
     }
-    ESP_LOGD(TAG, "WIFI mac address: %x %x %x %x %x %x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    ESP_LOGI(TAG, "WIFI mac address: %x %x %x %x %x %x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
     if (ifx == WIFI_IF_AP) {
         s_rx_fn[1] = receive_ap;

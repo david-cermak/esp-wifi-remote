@@ -155,6 +155,7 @@ private:
     esp_err_t process_wifi_event(RpcHeader &header)
     {
         auto event_id = rpc.get_payload<int32_t>(api_id::WIFI_EVENT, header);
+        ESP_LOGI(TAG, "Processing WiFi event with id %" PRIi32, event_id);
         ESP_RETURN_ON_ERROR(esp_event_post(WIFI_REMOTE_EVENT, event_id, nullptr, 0, 0), TAG, "Failed to post WiFi event");
         return ESP_OK;
     }
@@ -206,9 +207,11 @@ private:
     }
     static esp_err_t channel_rx(esp_netif_t *netif, int nr, void *buffer, size_t len)
     {
-        if (netif) {
-            return esp_netif_receive(netif, buffer, len, nullptr);
-        }
+//        printf("Received data on channel %d, len: %zu\n", nr, len);
+        esp_wifi_remote_channel_rx(nullptr, buffer, nullptr, len);
+//        if (netif) {
+//            return esp_netif_receive(netif, buffer, len, nullptr);
+//        }
         return ESP_OK;
     }
 

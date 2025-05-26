@@ -130,6 +130,7 @@ private:
     static esp_err_t channel_rx(esp_netif_t *netif, int nr, void *buffer, size_t len)
     {
         if (get_instance()->started) {
+//            printf("Received data on channel %d, len: %zu\n", nr, len);
             return esp_wifi_internal_tx(WIFI_IF_STA, buffer, len);
         }
         return ESP_OK;
@@ -137,6 +138,7 @@ private:
     static esp_err_t wifi_receive(void *buffer, uint16_t len, void *eb)
     {
         if (get_instance()->channel_tx) {
+//            printf("Received wifi data len: %zu\n", len);
             auto ret = get_instance()->channel_tx(get_instance()->netif, 1, buffer, len);
             esp_wifi_internal_free_rx_buffer(eb);
             return ret;
@@ -173,7 +175,7 @@ private:
     }
     esp_err_t wifi_event(int32_t id)
     {
-        ESP_LOGI(TAG, "Received WIFI event %" PRIi32, id);
+        ESP_LOGI(TAG, "Received WIFI event %" PRIi32 " (%d)", id, (int)WIFI_EVENT_MAX);
         Events ev{api_id::WIFI_EVENT, id, nullptr};
         ESP_RETURN_ON_ERROR(sync.put(ev), TAG, "Failed to queue WiFi event");
         return ESP_OK;
@@ -314,6 +316,7 @@ private:
             }
             esp_wifi_internal_reg_rxcb(WIFI_IF_STA, wifi_receive);
             esp_wifi_internal_reg_netstack_buf_cb(esp_netif_netstack_buf_ref, esp_netif_netstack_buf_free);
+            started = true;
 
             auto ret = esp_wifi_start();
             if (rpc.send(api_id::START, &ret) != ESP_OK) {
@@ -367,6 +370,7 @@ private:
             auto req = rpc.get_payload<wifi_interface_t>(api_id::GET_MAC, header);
             esp_wifi_remote_mac_t resp = {};
             resp.err = esp_wifi_get_mac(req, resp.mac);
+            printf("%x\n", resp.err);
             if (rpc.send(api_id::GET_MAC, &resp) != ESP_OK) {
                 return ESP_FAIL;
             }
