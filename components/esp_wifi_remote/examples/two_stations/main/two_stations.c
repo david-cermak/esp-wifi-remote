@@ -149,6 +149,8 @@ static void wifi_init_sta(void)
 
 esp_netif_t* esp_wifi_remote_create_default_sta(void);
 
+void configure_wifi_remote(void);
+
 static void wifi_init_remote_sta(void)
 {
     esp_wifi_remote_create_default_sta();
@@ -175,6 +177,7 @@ static void wifi_init_remote_sta(void)
             .password = CONFIG_ESP_WIFI_REMOTE_PASSWORD,
         },
     };
+    configure_wifi_remote();
     ESP_ERROR_CHECK(esp_wifi_remote_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_remote_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_remote_start());
