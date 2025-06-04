@@ -12,6 +12,8 @@ choice ESP_WIFI_REMOTE_LIBRARY
         bool "ESP-HOSTED"
     config ESP_WIFI_REMOTE_LIBRARY_EPPP
         bool "EPPP"
+    config ESP_WIFI_REMOTE_LIBRARY_NONE
+        bool "None"
 endchoice
 
     if ESP_WIFI_REMOTE_LIBRARY_EPPP

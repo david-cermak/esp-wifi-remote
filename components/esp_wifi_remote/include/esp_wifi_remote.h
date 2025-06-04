@@ -11,9 +11,9 @@
 extern "C" {
 #endif
 
-#if defined(CONFIG_ESP_WIFI_ENABLED)
+//#if defined(CONFIG_ESP_WIFI_ENABLED)
 ESP_EVENT_DECLARE_BASE(WIFI_REMOTE_EVENT);
-#endif
+//#endif
 
 /**
  * @brief Remote channel Rx function pointer

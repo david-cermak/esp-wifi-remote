@@ -21,6 +21,8 @@ static esp_remote_channel_tx_fn_t s_tx_cb[CHANNELS];
 static esp_remote_channel_t s_channel[CHANNELS];
 static wifi_rxcb_t s_rx_fn[CHANNELS];
 
+ESP_EVENT_DEFINE_BASE(WIFI_REMOTE_EVENT);
+
 WEAK esp_err_t internal_set_sta_ip(void)
 {
     // TODO: Pass this information to the slave target
@@ -30,8 +32,9 @@ WEAK esp_err_t internal_set_sta_ip(void)
 
 WEAK esp_err_t esp_wifi_remote_channel_rx(void *h, void *buffer, void *buff_to_free, size_t len)
 {
-//    assert(h);
-    if (/*h == s_channel[0] &&*/ s_rx_fn[0]) {
+//    printf("esp_wifi_remote_channel_rx: h=%p, buffer=%p, len=%zu\n", h, buffer, len);
+    assert(h);
+    if (h == s_channel[0] && s_rx_fn[0]) {
         return s_rx_fn[0](buffer, len, buff_to_free);
     }
     if (h == s_channel[1] && s_rx_fn[1]) {
@@ -350,6 +353,15 @@ esp_err_t esp_wifi_remote_clear_default_wifi_driver_and_handlers(void *esp_netif
     s_rx_fn[ifx] = NULL;
     return ESP_OK;
 }
+
+void esp_netif_destroy_wifi_remote(void *esp_netif)
+{
+    if (esp_netif) {
+        esp_wifi_remote_clear_default_wifi_driver_and_handlers(esp_netif);
+    }
+    esp_netif_destroy(esp_netif);
+}
+
 
 #if defined(CONFIG_WIFI_RMT_SOFTAP_SUPPORT) && !defined(CONFIG_ESP_WIFI_SOFTAP_SUPPORT)
 

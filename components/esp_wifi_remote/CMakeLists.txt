@@ -1,5 +1,6 @@
 if(NOT CONFIG_ESP_WIFI_ENABLED AND NOT CONFIG_ESP_HOST_WIFI_ENABLED)
-    set(src_wifi_is_remote esp_wifi_remote.c esp_wifi_remote_net.c)
+    set(src_wifi_is_remote esp_wifi_remote.c)
+#    esp_wifi_remote_net.c)
 endif()
 
 if(CONFIG_ESP_WIFI_REMOTE_LIBRARY_EPPP)
@@ -40,9 +41,9 @@ if(NOT CONFIG_ESP_WIFI_ENABLED AND NOT CONFIG_ESP_HOST_WIFI_ENABLED)
     set(TARGET_SOURCE_TYPE "PRIVATE")
 endif()
 
-if(CONFIG_ESP_WIFI_ENABLED OR CONFIG_ESP_HOST_WIFI_ENABLED)
+#if(CONFIG_ESP_WIFI_ENABLED OR CONFIG_ESP_HOST_WIFI_ENABLED)
     set(wifi_sources "esp_wifi_remote_netif2.c")
-endif()
+#endif()
 
 
 if(CONFIG_ESP_WIFI_REMOTE_LIBRARY_EPPP)
