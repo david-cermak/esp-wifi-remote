@@ -42,3 +42,9 @@ jobs:
           . ${IDF_PATH}/export.sh
           pip install idf-component-manager idf-build-apps --upgrade
           python $GITHUB_WORKSPACE/protocols/ci/build_apps.py ./components/wifi_remote_over_eppp/${{matrix.test.path}} -vv --preserve-all
+          cd ./components/wifi_remote_over_eppp/${{matrix.test.path}}
+          for dir in `ls -d build*/`; do
+            echo -e "\nChecking build directory: $dir"
+            grep esp_wifi_remote_init ${dir}sample.map | grep libwifi_remote_over_eppp.a || exit 1
+            echo -e "esp_wifi_remote_init linked from libwifi_remote_over_eppp"
+          done
