@@ -16,6 +16,7 @@
 #include "esp_check.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
+#include "freertos/semphr.h"
 #include "cxx_include/esp_modem_command_library_utils.hpp"
 
 #if defined(CONFIG_ESP_WIFI_ENABLED)
@@ -35,20 +36,24 @@ public:
 
     bool setup_data_mode() override
     {
-        return false;
+        return true;
     }
 
     bool set_mode(::esp_modem::modem_mode mode) override
     {
-        return false;
+        ESP_LOGI(TAG, "Setting mode: %d", static_cast<int>(mode));
+        if (mode == esp_modem::modem_mode::DATA_MODE) {
+            return esp_modem::dce_commands::generic_command(dte.get(), "AT+PPPD\r\n", "CONNECT", "ERROR", 5000) == esp_modem::command_result::OK;
+        }
+        return true;
     }
 
 protected:
     std::shared_ptr<::esp_modem::DTE> dte;
 };
 
-class DCE : public ESP_AT_Module {
-    using ESP_AT_Module::ESP_AT_Module;
+class DCE : public esp_modem::DCE_T<ESP_AT_Module> {
+    using DCE_T<ESP_AT_Module>::DCE_T;
 public:
 
     bool parse(std::string_view token, std::string_view pattern, std::string &out)
@@ -138,7 +143,15 @@ public:
             evt.ip_info.ip.addr = esp_ip4addr_aton(ip.c_str());
             evt.ip_info.gw.addr = esp_ip4addr_aton(gw.c_str());
             evt.ip_info.netmask.addr = esp_ip4addr_aton(mask.c_str());
-            esp_event_post(IP_EVENT, IP_EVENT_STA_GOT_IP, &evt, sizeof(evt), 0);
+            if (esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, on_ip, this) != ESP_OK) {
+                printf("Failed to register IP event handler");
+            }
+            if (!set_mode(::esp_modem::modem_mode::DATA_MODE)) {
+                ESP_LOGE(TAG, "Failed to set modem to DATA mode");
+                return false;
+            }
+
+//            esp_event_post(IP_EVENT, IP_EVENT_STA_GOT_IP, &evt, sizeof(evt), 0);
         }
         return true;
     }
@@ -156,21 +169,61 @@ public:
     }
 
 private:
+    static void on_ip(void *arg, esp_event_base_t base, int32_t event_id, void *data)
+    {
+        auto t = static_cast<DCE *>(arg);
+
+        ip_event_got_ip_t *event = (ip_event_got_ip_t *)data;
+        esp_netif_t *netif = event->esp_netif;
+        if (event_id == IP_EVENT_PPP_GOT_IP) {
+            printf("Got IPv4 event: Interface \"%s(%s)\" address: " IPSTR, esp_netif_get_desc(netif),
+                   esp_netif_get_ifkey(netif), IP2STR(&event->ip_info.ip));
+            esp_event_post(IP_EVENT, IP_EVENT_STA_GOT_IP, event, sizeof(*event), 0);
+            esp_netif_dns_info_t dns;
+            dns.ip.u_addr.ip4.addr = esp_netif_htonl(0x08080808);
+            dns.ip.type = ESP_IPADDR_TYPE_V4;
+            ESP_ERROR_CHECK(esp_netif_set_dns_info(netif, ESP_NETIF_DNS_MAIN, &dns));
+
+//            ip_event_got_ip_t evt = { };
+//            evt.esp_netif = s_esp_netif;
+//            evt.ip_info.ip.addr = event->ip_info.ip.addr;
+//            evt.ip_info.gw.addr = event->ip_info.ip.addr;
+//            evt.ip_info.netmask.addr = esp_ip4addr_aton(mask.c_str());
+
+        } else if (event_id == IP_EVENT_PPP_LOST_IP) {
+            ESP_LOGI(TAG, "Disconnected");
+        }
+    }
 };
 
 
+//DCE *esp_modem_create_custom_dce(const esp_modem_dce_config_t *dce_config, std::shared_ptr<::esp_modem::DTE> dte, esp_netif_t *netif)
+//{
+//    return ::esp_modem::dce_factory::Factory::create_unique_dce_from<ESP_AT_Module, ::esp_modem::DCE_T<ESP_AT_Module> *>(dce_config, std::move(dte), netif);
+//}
+
 class Factory: public ::esp_modem::dce_factory::Factory {
 public:
-    static std::unique_ptr<DCE> create(const esp_modem::dce_config *config, std::shared_ptr<esp_modem::DTE> dte)
+    static std::unique_ptr<DCE> create(const esp_modem::dce_config *config, std::shared_ptr<esp_modem::DTE> dte, esp_netif_t *netif)
     {
-        return esp_modem::dce_factory::Factory::build_module_T<DCE, std::unique_ptr<DCE>>(config, std::move(dte));
+//        return esp_modem::dce_factory::Factory::build_module_T<DCE, std::unique_ptr<DCE>>(config, std::move(dte));
+        return build_generic_DCE<ESP_AT_Module, DCE, std::unique_ptr<DCE>>(config, std::move(dte), netif);
     }
 };
 
 std::unique_ptr<DCE> create(std::shared_ptr<esp_modem::DTE> dte)
 {
+    static esp_netif_t *netif;
+//    ESP_ERROR_CHECK(esp_netif_init());
+//    ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+    /* Configure the PPP netif */
+    esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
+    netif = esp_netif_new(&netif_ppp_config);
+    assert(netif);
+
     esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG("APN"); // dummy config (not used with esp-at)
-    return Factory::create(&dce_config, std::move(dte));
+    return Factory::create(&dce_config, std::move(dte), netif);
 }
 
 /**
