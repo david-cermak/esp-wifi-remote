@@ -1,15 +1,12 @@
 name: Publish WiFi Remote components
 
 on:
-  workflow_run:
-    workflows: ["Build", "Compat checks"]
-    branches: [main]
-    types:
-      - completed
+  push:
+    branches:
+      - main
 
 jobs:
   publish:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     name: Publishes Tag, Release, and Uploads Component
 
     runs-on: ubuntu-latest
