@@ -401,3 +401,10 @@ extern "C" esp_err_t esp_wifi_remote_set_storage(wifi_storage_t storage)
     ESP_RETURN_ON_ERROR(instance.send(api_id::SET_STORAGE, &storage), TAG, "Failed to send request");
     return instance.get_resp<esp_err_t>(api_id::SET_STORAGE);
 }
+
+extern "C" esp_err_t esp_wifi_remote_set_ps(wifi_ps_type_t type)
+{
+    std::lock_guard<Sync> lock(instance.sync);
+    ESP_RETURN_ON_ERROR(instance.send(api_id::SET_PS, &type), TAG, "Failed to send request");
+    return instance.get_resp<esp_err_t>(api_id::SET_PS);
+}

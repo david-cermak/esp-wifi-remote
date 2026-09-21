@@ -36,6 +36,7 @@ enum class api_id : uint32_t {
     SET_STORAGE,
     WIFI_EVENT,
     IP_EVENT,
+    SET_PS,
 };
 
 enum class role {

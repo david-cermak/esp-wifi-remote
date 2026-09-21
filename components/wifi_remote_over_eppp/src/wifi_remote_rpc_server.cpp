@@ -396,6 +396,14 @@ private:
             }
             break;
         }
+        case api_id::SET_PS: {
+            auto req = rpc.get_payload<wifi_ps_type_t>(api_id::SET_PS, header);
+            auto ret = esp_wifi_set_ps(req);
+            if (rpc.send(api_id::SET_PS, &ret) != ESP_OK) {
+                return ESP_FAIL;
+            }
+            break;
+        }
         case api_id::GET_MAC: {
             auto req = rpc.get_payload<wifi_interface_t>(api_id::GET_MAC, header);
             esp_wifi_remote_mac_t resp = {};
