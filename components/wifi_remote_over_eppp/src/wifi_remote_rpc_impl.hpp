@@ -10,6 +10,9 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #endif
+#ifdef WIFI_RMT_HAS_REFLECTION
+#include "wifi_remote_rpc_meta.hpp"
+#endif
 
 namespace eppp_rpc {
 

@@ -342,6 +342,19 @@ private:
             }
             break;
         }
+        case api_id::STOP: {
+            if (header.size != 0) {
+                return ESP_FAIL;
+            }
+#ifdef CONFIG_WIFI_RMT_OVER_EPPP_HOST_SIDE_NETIF
+            started = false;
+#endif
+            auto ret = esp_wifi_stop();
+            if (rpc.send(api_id::STOP, &ret) != ESP_OK) {
+                return ESP_FAIL;
+            }
+            break;
+        }
         case api_id::CONNECT: {
             if (header.size != 0) {
                 return ESP_FAIL;
