@@ -13,9 +13,6 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #endif
-#ifdef WIFI_RMT_HAS_REFLECTION
-#include "wifi_remote_rpc_meta.hpp"
-#endif
 
 namespace eppp_rpc {
 
@@ -72,6 +69,14 @@ constexpr int32_t from_le32_s(le32 value)
     return static_cast<int32_t>(from_le32(value));
 }
 
+}  // namespace eppp_rpc
+
+#ifdef WIFI_RMT_HAS_REFLECTION
+#include "wifi_remote_rpc_meta.hpp"
+#endif
+
+namespace eppp_rpc {
+
 /**
  * @brief Currently supported RPC commands/events
  */
@@ -114,7 +119,8 @@ static_assert(sizeof(WireHeader) == 8);
 
 /**
  * Encode a host value into wire bytes.
- * Integrals/enums → explicit LE. Other PODs (IDF structs) → memcpy (LE-LE ESP).
+ * Integrals/enums → explicit LE.
+ * Aggregates (with reflection) → member walk fixing i16/i32/enums; unions opaque.
  */
 template<typename T>
 void to_wire_bytes(const T &host, void *out)
@@ -136,6 +142,12 @@ void to_wire_bytes(const T &host, void *out)
         } else {
             static_assert(sizeof(T) != sizeof(T), "unsupported integral wire size");
         }
+#ifdef WIFI_RMT_HAS_REFLECTION
+    } else if constexpr (std::meta::is_union_type(^^T)) {
+        std::memcpy(out, &host, sizeof(T));
+    } else if constexpr (std::meta::is_class_type(^^T)) {
+        rpc_struct_to_wire(host, out);
+#endif
     } else {
         std::memcpy(out, &host, sizeof(T));
     }
@@ -167,6 +179,14 @@ T from_wire_bytes(const void *in)
         } else {
             static_assert(sizeof(T) != sizeof(T), "unsupported integral wire size");
         }
+#ifdef WIFI_RMT_HAS_REFLECTION
+    } else if constexpr (std::meta::is_union_type(^^T)) {
+        T out{};
+        std::memcpy(&out, in, sizeof(T));
+        return out;
+    } else if constexpr (std::meta::is_class_type(^^T)) {
+        return rpc_struct_from_wire<T>(in);
+#endif
     } else {
         T out{};
         std::memcpy(&out, in, sizeof(T));
