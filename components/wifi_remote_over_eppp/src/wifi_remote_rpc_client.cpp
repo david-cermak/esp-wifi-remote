@@ -163,6 +163,7 @@ private:
         };
         esp_netif_get_ip_info(netif, &evt.ip_info);
         ESP_RETURN_ON_ERROR(esp_event_post(IP_EVENT, IP_EVENT_STA_GOT_IP, &evt, sizeof(evt), 0), TAG, "Failed to post IP event");
+        ESP_LOGI(TAG, "IP event id %" PRIi32, from_le32_s(event.id));
         ESP_LOGI(TAG, "Main DNS:" IPSTR, IP2STR(&event.dns.ip.u_addr.ip4));
         ESP_LOGI(TAG, "EPPP IP:" IPSTR, IP2STR(&event.ppp_ip.ip));
         ESP_LOGI(TAG, "WIFI IP:" IPSTR, IP2STR(&event.wifi_ip.ip));
@@ -371,7 +372,7 @@ extern "C" esp_err_t esp_wifi_remote_get_mac(wifi_interface_t ifx, uint8_t mac[6
     auto ret = instance.get_resp<esp_wifi_remote_mac_t>(api_id::GET_MAC);
     ESP_LOG_BUFFER_HEXDUMP("MAC", ret.mac, 6, ESP_LOG_DEBUG);
     memcpy(mac, ret.mac, 6);
-    return ret.err;
+    return static_cast<esp_err_t>(from_le32_s(ret.err));
 }
 
 extern "C" esp_err_t esp_wifi_remote_set_mode(wifi_mode_t mode)

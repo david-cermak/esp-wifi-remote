@@ -202,7 +202,7 @@ private:
         Events ev{api_id::IP_EVENT, id, nullptr};
         if (id == IP_EVENT_STA_GOT_IP && ip_data->esp_netif) {
             ESP_RETURN_ON_ERROR(ev.create_ip_data(), TAG, "Failed to allocate event data");
-            ev.ip_data->id = id;
+            ev.ip_data->id = to_le32_s(id);
             ESP_RETURN_ON_ERROR(esp_netif_get_dns_info(ip_data->esp_netif, ESP_NETIF_DNS_MAIN, &ev.ip_data->dns), TAG, "Failed to get DNS info");
             ESP_LOGI(TAG, "Main DNS:" IPSTR, IP2STR(&ev.ip_data->dns.ip.u_addr.ip4));
             memcpy(&ev.ip_data->wifi_ip, &ip_data->ip_info, sizeof(ev.ip_data->wifi_ip));
@@ -407,7 +407,7 @@ private:
         case api_id::GET_MAC: {
             auto req = rpc.get_payload<wifi_interface_t>(api_id::GET_MAC, header);
             esp_wifi_remote_mac_t resp = {};
-            resp.err = esp_wifi_get_mac(req, resp.mac);
+            resp.err = to_le32_s(esp_wifi_get_mac(req, resp.mac));
             if (rpc.send(api_id::GET_MAC, &resp) != ESP_OK) {
                 return ESP_FAIL;
             }
